@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Camera AI</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a; --surface: #141414; --border: #2a2a2a;
+      --text: #f0f0f0; --muted: #666; --accent: #7fff7f;
+      --accent-dim: #3a5c3a; --danger: #ff6b6b; --radius: 12px;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'DM Sans', sans-serif; overflow: hidden; }
+    #app { display: flex; flex-direction: column; height: 100vh; padding: 20px 20px 36px; gap: 14px; }
+    header { display: flex; align-items: center; justify-content: space-between; }
+    .logo { font-family: 'DM Mono', monospace; font-size: 13px; letter-spacing: 0.08em; color: var(--accent); text-transform: uppercase; }
+    #status-dot { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--muted); font-family: 'DM Mono', monospace; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); transition: background 0.3s; }
+    .dot.connected { background: var(--accent); box-shadow: 0 0 6px var(--accent); }
+    .dot.scanning { background: var(--accent); box-shadow: 0 0 6px var(--accent); animation: pulse 1.5s ease-in-out infinite; }
+    .dot.error { background: var(--danger); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    #viewfinder { flex: 1; position: relative; border-radius: var(--radius); overflow: hidden; background: #000; border: 1px solid var(--border); transition: border-color 0.3s; }
+    #viewfinder.scanning { border-color: var(--accent-dim); }
+    #video { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .corner { position: absolute; width: 20px; height: 20px; border-color: var(--accent); border-style: solid; opacity: 0.4; transition: opacity 0.3s; }
+    #viewfinder.scanning .corner { opacity: 1; }
+    .corner.tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+    .corner.tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+    .corner.bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+    .corner.br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+    #countdown-wrap { position: absolute; top: 12px; left: 12px; width: 44px; height: 44px; display: none; align-items: center; justify-content: center; }
+    #viewfinder.scanning #countdown-wrap { display: flex; }
+    #countdown-svg { position: absolute; inset: 0; transform: rotate(-90deg); }
+    #countdown-circle { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linecap: round; stroke-dasharray: 119; stroke-dashoffset: 0; transition: stroke-dashoffset 1s linear; }
+    #countdown-num { font-family: 'DM Mono', monospace; font-size: 13px; color: var(--accent); position: relative; z-index: 1; }
+    #flash { position: absolute; inset: 0; background: white; opacity: 0; pointer-events: none; transition: opacity 0.08s; }
+    #flash.active { opacity: 0.18; }
+    #answer-box { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; min-height: 68px; line-height: 1.5; transition: border-color 0.3s; }
+    #answer-box.has-answer { border-color: var(--accent-dim); }
+    #answer-label { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; margin-bottom: 6px; }
+    #answer-text { color: var(--muted); font-size: 13px; }
+    #answer-text.filled { color: var(--text); font-size: 14px; }
+    #controls { display: flex; gap: 10px; align-items: center; }
+    #scan-btn { flex: 1; height: 52px; border-radius: var(--radius); border: none; cursor: pointer; font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; background: var(--accent); color: #000; transition: transform 0.1s; -webkit-tap-highlight-color: transparent; }
+    #scan-btn.active { background: var(--danger); color: #fff; }
+    #scan-btn:active { transform: scale(0.97); }
+    #manual-btn { width: 52px; height: 52px; border-radius: 50%; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-size: 18px; cursor: pointer; flex-shrink: 0; transition: transform 0.1s; -webkit-tap-highlight-color: transparent; }
+    #manual-btn:active { transform: scale(0.93); }
+    #manual-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+    canvas { display: none; }
+  </style>
+</head>
+<body>
+  <div id="app">
+    <header>
+      <span class="logo">Camera AI · G1</span>
+      <div id="status-dot">
+        <div class="dot" id="dot"></div>
+        <span id="status-label">checking...</span>
+      </div>
+    </header>
+    <div id="viewfinder">
+      <video id="video" autoplay playsinline muted></video>
+      <div class="corner tl"></div><div class="corner tr"></div>
+      <div class="corner bl"></div><div class="corner br"></div>
+      <div id="countdown-wrap">
+        <svg id="countdown-svg" viewBox="0 0 44 44">
+          <circle id="countdown-circle" cx="22" cy="22" r="19"/>
+        </svg>
+        <span id="countdown-num">20</span>
+      </div>
+      <div id="flash"></div>
+    </div>
+    <div id="answer-box">
+      <div id="answer-label">Answer</div>
+      <div id="answer-text">Point camera at a question. Tap Start Scanning.</div>
+    </div>
+    <div id="controls">
+      <button id="scan-btn">Start Scanning</button>
+      <button id="manual-btn" title="Capture now">⚡</button>
+    </div>
+  </div>
+  <canvas id="canvas"></canvas>
+  <script>
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const scanBtn = document.getElementById('scan-btn');
+    const manualBtn = document.getElementById('manual-btn');
+    const answerText = document.getElementById('answer-text');
+    const answerBox = document.getElementById('answer-box');
+    const viewfinder = document.getElementById('viewfinder');
+    const dot = document.getElementById('dot');
+    const statusLabel = document.getElementById('status-label');
+    const flash = document.getElementById('flash');
+    const countdownNum = document.getElementById('countdown-num');
+    const countdownCircle = document.getElementById('countdown-circle');
+    const SCAN_INTERVAL = 15, CIRCUMFERENCE = 119;
+    let scanning = false, scanTimer = null, countdownTimer = null, secondsLeft = SCAN_INTERVAL;
+
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
+      .then(stream => { video.srcObject = stream; })
+      .catch(() => {
+        dot.className = 'dot error'; statusLabel.textContent = 'camera denied';
+        answerText.textContent = 'Camera access denied. Allow camera in browser settings.';
+      });
+
+    async function checkStatus() {
+      try {
+        const d = await (await fetch('/status')).json();
+        if (!scanning) {
+          dot.className = d.glassesConnected ? 'dot connected' : 'dot';
+          statusLabel.textContent = d.glassesConnected ? 'glasses connected' : 'waiting for glasses';
+        }
+      } catch { if (!scanning) { dot.className = 'dot error'; statusLabel.textContent = 'server offline'; } }
+    }
+    checkStatus(); setInterval(checkStatus, 5000);
+
+    function captureFrame() {
+      const ctx = canvas.getContext('2d');
+      const maxW = 800;
+      const scale = Math.min(1, maxW / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      return canvas.toDataURL('image/jpeg', 0.8);
+    }
+
+    function doFlash() { flash.classList.add('active'); setTimeout(() => flash.classList.remove('active'), 120); }
+
+    function updateCountdown(s) {
+      countdownNum.textContent = s;
+      countdownCircle.style.strokeDashoffset = CIRCUMFERENCE * (1 - s / SCAN_INTERVAL);
+    }
+
+    async function sendScan() {
+      if (!video.srcObject) return;
+      doFlash();
+      try {
+        const data = await (await fetch('/scan', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: captureFrame() }),
+        })).json();
+        if (data.status === 'ok') {
+          answerText.textContent = data.answer; answerText.className = 'filled';
+          answerBox.classList.add('has-answer');
+        }
+      } catch {}
+    }
+
+    function startScanning() {
+      scanning = true; scanBtn.textContent = 'Stop Scanning'; scanBtn.classList.add('active');
+      viewfinder.classList.add('scanning'); dot.className = 'dot scanning'; statusLabel.textContent = 'scanning...';
+      secondsLeft = SCAN_INTERVAL; updateCountdown(secondsLeft); sendScan();
+      scanTimer = setInterval(() => { secondsLeft = SCAN_INTERVAL; updateCountdown(secondsLeft); sendScan(); }, SCAN_INTERVAL * 1000);
+      countdownTimer = setInterval(() => { secondsLeft = Math.max(0, secondsLeft - 1); updateCountdown(secondsLeft); }, 1000);
+    }
+
+    function stopScanning() {
+      scanning = false; clearInterval(scanTimer); clearInterval(countdownTimer); scanTimer = countdownTimer = null;
+      scanBtn.textContent = 'Start Scanning'; scanBtn.classList.remove('active');
+      viewfinder.classList.remove('scanning'); countdownCircle.style.strokeDashoffset = 0;
+      countdownNum.textContent = SCAN_INTERVAL; checkStatus();
+    }
+
+    scanBtn.addEventListener('click', () => scanning ? stopScanning() : startScanning());
+
+    manualBtn.addEventListener('click', async () => {
+      manualBtn.disabled = true; doFlash();
+      try {
+        const data = await (await fetch('/photo', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ imageBase64: captureFrame() }),
+        })).json();
+        if (data.ok) { answerText.textContent = data.answer; answerText.className = 'filled'; answerBox.classList.add('has-answer'); }
+      } catch { answerText.textContent = 'Network error.'; }
+      finally { manualBtn.disabled = false; }
+    });
+  </script>
+</body>
+</html>
