@@ -97,7 +97,7 @@
     const flash = document.getElementById('flash');
     const countdownNum = document.getElementById('countdown-num');
     const countdownCircle = document.getElementById('countdown-circle');
-    const SCAN_INTERVAL = 15, CIRCUMFERENCE = 119;
+    const SCAN_INTERVAL = 30, CIRCUMFERENCE = 119;
     let scanning = false, scanTimer = null, countdownTimer = null, secondsLeft = SCAN_INTERVAL;
 
     navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false })
