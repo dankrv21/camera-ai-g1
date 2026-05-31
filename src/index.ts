@@ -30,7 +30,7 @@ class CameraAIApp extends AppServer {
       try {
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
         const response = await anthropic.messages.create({
-          model: "claude-sonnet-4-6",
+          model: "claude-opus-4-8",
           max_tokens: 150,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64Data } },
@@ -60,7 +60,7 @@ class CameraAIApp extends AppServer {
         activeSession.layouts.showTextWall("Analyzing...");
         const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
         const response = await anthropic.messages.create({
-          model: "claude-sonnet-4-6",
+          model: "claude-opus-4-8",
           max_tokens: 200,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64Data } },
