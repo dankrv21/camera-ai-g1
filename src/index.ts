@@ -34,12 +34,19 @@ class CameraAIApp extends AppServer {
           max_tokens: 150,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64Data } },
-            { type: "text", text: `You are answering questions from photos. Rules:
-1. NEVER describe the image or use markdown or headers
-2. If you see a question OR a term/definition card OR fill-in-the-blank — answer it
-3. For multiple choice or options (even numbered 1 2 3 4): reply ONLY with the correct number or letter and the answer, example: 1) Structure
-4. For open ended: reply ONLY the answer in under 8 words
-5. If truly no question exists: reply NONE` }
+            { type: "text", text: `You are an expert in every academic subject including accounting, finance, economics, math, science, history, law, and all others. Analyze every detail in this image: all text, numbers, charts, graphs, tables, journal entries, T-accounts, equations, diagrams.
+
+If a question is visible in any form, think carefully and give the CORRECT answer:
+- Multiple choice: read ALL options carefully, pick the correct one, reply ONLY with letter/number and answer, example: B) Accounts Receivable
+- No options visible: answer using your knowledge, reply ONLY the answer in under 12 words
+- Journal entry or T-account: reply ONLY correct debit and credit, example: Debit Cash $500, Credit Revenue $500
+- Math or calculation: solve fully, reply ONLY final answer, example: Net Income = $12,400
+- Fill in blank: reply ONLY the correct word or value
+- True/False: reply ONLY True or False
+- Graph or chart: read the visual data carefully, reply ONLY the correct answer
+
+Rules: NEVER describe the image. NEVER use markdown. NEVER explain reasoning. Accuracy matters most.
+If no question exists: reply NONE` }
           ]}],
         });
         const raw = response.content[0].type === "text" ? response.content[0].text.trim() : "NONE";
@@ -64,7 +71,7 @@ class CameraAIApp extends AppServer {
           max_tokens: 200,
           messages: [{ role: "user", content: [
             { type: "image", source: { type: "base64", media_type: "image/jpeg", data: base64Data } },
-            { type: "text", text: prompt?.trim() || "Answer the question in this image directly. No descriptions, no markdown, just the answer. If multiple choice give the correct option only." }
+            { type: "text", text: prompt?.trim() || "You are an expert in all academic subjects. Answer the question in this image with ONLY the correct answer. No descriptions, no markdown, no explanations. If multiple choice give only the correct option." }
           ]}],
         });
         const answer = response.content[0].type === "text" ? response.content[0].text : "No answer.";
